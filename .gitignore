@@ -3,6 +3,8 @@ cache/
 tmvec_data/
 tmvec_train/
 tmvec_retrained/
+db_test/
+models/
 *.ipynb
 onnx/
 # include notebooks folder
