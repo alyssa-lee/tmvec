@@ -193,11 +193,22 @@ def save_embeddings(seqs, queries, output_embeddings_file, output_fmt='npz'):
         if output_fmt == 'npz':
             np.save(output_embeddings_file, queries)
         elif output_fmt == 'skbio':
-            cls = skbio.embedding.ProteinVector
+            try:
+                import skbio
+                from skbio.embedding import ProteinVector
+            except ImportError as e:
+                raise ValueError(
+                    "The 'skbio' output format requires the scikit-bio library to be installed. "
+                    "Please install tmvec[scikit-bio] and try again.") from e
+
+            cls = ProteinVector
             pvs = (cls(q, s) for s, q in zip(seqs, queries))
-            skbio.io.write(pvs, format='embed', into=str(output_embeddings_file))
+            skbio.io.write(pvs,
+                           format='embed',
+                           into=str(output_embeddings_file))
+
         else:
-            raise ValueError(f'output_fmt {output_fmt} not supported.')
+            raise ValueError(f'Output format {output_fmt} not supported.')
 
 
 def format_ids(str1, str2):
