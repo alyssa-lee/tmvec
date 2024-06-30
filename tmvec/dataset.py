@@ -59,8 +59,8 @@ class tm_score_embeds_dataset(Dataset):
         # open HDF file
         with h5py.File(self.hdf_file, 'r') as f:
             idx1, idx2, tm_score = self.tm_score_emb_data.loc[idx].values
-            seq1 = np.array(f[idx1]["emb"], dtype=np.float32)
-            seq2 = np.array(f[idx2]["emb"], dtype=np.float32)
+            seq1 = f[idx1]["emb"][:].astype(np.float32)
+            seq2 = f[idx2]["emb"][:].astype(np.float32)
             sample = {
                 'Embed_sequence_1': torch.Tensor(seq1),
                 'Embed_sequence_2': torch.Tensor(seq2),
