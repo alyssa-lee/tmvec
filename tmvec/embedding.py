@@ -160,36 +160,38 @@ class ESMEncoder(ProtLM):
     def __init__(self,
                  model_path,
                  tokenizer_path,
-                 cache_dir,
+                 cache_dir=None,
+                 backend="torch",
                  compile_model=False,
                  local_files_only=True,
-                 pooling_layer=False,
                  threads=1):
         from transformers import EsmModel, EsmTokenizer
 
         super().__init__(model_path, tokenizer_path, cache_dir, compile_model,
                          threads)
-        self.tokenizer = EsmTokenizer.from_pretrained(
-            tokenizer_path,
-            cache_dir=cache_dir,
-            local_files_only=local_files_only,
-            legacy=True)
-        self.model = EsmModel.from_pretrained(
-            model_path,
-            cache_dir=cache_dir,
-            local_files_only=local_files_only,
-            pooling_layer=pooling_layer)
+        if backend == "torch":
+            self.tokenizer = EsmTokenizer.from_pretrained(
+                tokenizer_path,
+                cache_dir=cache_dir,
+                local_files_only=local_files_only,
+                legacy=True)
+            self.model = EsmModel.from_pretrained(
+                model_path,
+                cache_dir=cache_dir,
+                local_files_only=local_files_only)
 
-        self.init_torch()
+            self.init_torch()
+        else:
+            raise ValueError("Backend is not supported for ESM model.")
 
-        def remove_special_tokens(self,
-                                  embeddings,
-                                  attention_mask,
-                                  shift_start=1,
-                                  shift_end=-1):
-            embs = super().remove_special_tokens(embeddings, attention_mask,
-                                                 shift_start, shift_end)
-            return embs
+    def remove_special_tokens(self,
+                              embeddings,
+                              attention_mask,
+                              shift_start=1,
+                              shift_end=-1):
+        embs = super().remove_special_tokens(embeddings, attention_mask,
+                                             shift_start, shift_end)
+        return embs
 
 
 class Ankh(ProtT5Encoder):

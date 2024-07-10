@@ -91,7 +91,7 @@ def load_fasta_as_dict(fasta_file: str,
     return seqs_dict
 
 
-def create_batched_sequence_datasest(
+def create_batched_sequence_dataset(
     sequences: Dict[str, str],
     max_tokens_per_batch: int = 1024
 ) -> Generator[Tuple[List[str], List[str]], None, None]:
