@@ -29,8 +29,10 @@ class TMVec:
         self.compile_model = None
         # load from the repo
         if not self.tmvec_model:
-            self.tmvec_model = TransformerEncoderModule.from_pretrained(
+            self.tmvec_config = TransformerEncoderModuleConfig.from_pretrained(
                 TMVEC_REPO)
+            self.tmvec_model = TransformerEncoderModule.from_pretrained(
+                TMVEC_REPO, config=self.tmvec_config)
 
         # move model to device
         self.tmvec_model.to(self.device)
