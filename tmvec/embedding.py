@@ -127,7 +127,7 @@ class ProtT5Encoder(ProtLM):
                  cache_dir=None,
                  backend="torch",
                  compile_model=False,
-                 local_files_only=True,
+                 local_files_only=False,
                  threads=1):
         from transformers import T5Tokenizer
         super().__init__(model_path, tokenizer_path, cache_dir, compile_model,
@@ -163,7 +163,7 @@ class ESMEncoder(ProtLM):
                  cache_dir=None,
                  backend="torch",
                  compile_model=False,
-                 local_files_only=True,
+                 local_files_only=False,
                  threads=1):
         from transformers import EsmModel, EsmTokenizer
 
