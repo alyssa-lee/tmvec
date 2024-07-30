@@ -129,10 +129,10 @@ class ProtT5Encoder(ProtLM):
                  compile_model=False,
                  local_files_only=False,
                  threads=1):
-        from transformers import T5Tokenizer
+        from transformers import AutoTokenizer
         super().__init__(model_path, tokenizer_path, cache_dir, compile_model,
                          threads)
-        self.tokenizer = T5Tokenizer.from_pretrained(
+        self.tokenizer = AutoTokenizer.from_pretrained(
             tokenizer_path,
             cache_dir=cache_dir,
             local_files_only=local_files_only,
@@ -196,8 +196,9 @@ class ESMEncoder(ProtLM):
 
 class Ankh(ProtT5Encoder):
     def tokenize(self, sequences):
+        protein_sequences = [list(seq) for seq in sequences]
         inp = self.tokenizer.batch_encode_plus(
-            sequences,
+            protein_sequences,
             add_special_tokens=True,
             padding=True,
             is_split_into_words=True,
