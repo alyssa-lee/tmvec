@@ -39,7 +39,8 @@ class tm_score_embeds_dataset(Dataset):
         """
         Args:
             hdf_file (string): Path to the pickle file with the embeddings and tm_scores.
-            tm_pairs (string): Path to the TSV file with pairs of proteins with TM scores.
+            tm_pairs (string): Path to the TSV file with pairs of proteins with TM scores. Columns
+                are: idx1, idx2, tm_score.
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
@@ -75,6 +76,18 @@ def construct_datasets(hdf_file,
                        train_prop=.9,
                        val_prop=.05,
                        test_prop=.05):
+    """
+    Constructs train, validation, and test datasets from the given HDF file and TM pairs.
+    Args:
+        hdf_file (str): Path to the HDF file containing embeddings.
+        tm_pairs (str): Path to the TSV file containing TM pairs. Columns are: idx1, idx2, tm_score.
+        train_prop (float): Proportion of data to use for training.
+        val_prop (float): Proportion of data to use for validation.
+        test_prop (float): Proportion of data to use for testing.
+    Returns:
+        tuple: A tuple containing the training, validation, and test datasets.
+    """
+
     total_samples = len(
         tm_score_embeds_dataset(hdf_file=hdf_file, tm_pairs=tm_pairs))
     sampleable_values = np.arange(total_samples)
