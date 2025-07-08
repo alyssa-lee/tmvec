@@ -5,14 +5,15 @@ TM-Vec: template modeling vectors for fast homology detection and alignment: htt
 
 # Installation
 
-First create a conda environment with python=3.9 installed.  If you are using cpu, use
+First create a conda environment with python>=3.9 installed.  If you are using cpu, use
 
-`conda create -n tmvec faiss-cpu python -c pytorch`
+```conda create -n tmvec python -c pytorch```
 
-If the installation fails, you may need to install mkl via `conda install mkl=2021 mkl_fft `
+Once your conda enviroment is installed, install `tmvec` via:
 
-Once your conda enviroment is installed and activated (i.e. `conda activate tmvec`), then install tmvec via
-`pip install tmvec`. If you are using a GPU, you may need to reinstall the gpu version of pytorch.
+```pip install git+https://github.com/valentynbez/tmvec.git```
+
+If you are using a GPU, you may need to reinstall the gpu version of pytorch.
 See the [pytorch](https://pytorch.org/) webpage for more details.
 
 # Run TM-Vec from the command line
