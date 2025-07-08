@@ -9,6 +9,7 @@ from click._compat import get_text_stderr
 from click.exceptions import UsageError
 from click.utils import echo
 from pysam import FastaFile
+from tqdm import tqdm
 
 from tmvec import TMVEC_SEQ_LIM, __version__
 from tmvec.database import (get_metadata_for_neighbors, load_database, query,
@@ -260,7 +261,12 @@ def search(input_fasta, database, output, output_embeddings, output_fmt,
 
         # save alignments
         with open(output / "alignments.txt", 'w') as fh:
-            for i in range(indexes.shape[0]):
+            for i in tqdm(range(indexes.shape[0]),
+                          desc="Aligning sequences",
+                          total=indexes.shape[0],
+                          miniters=indexes.shape[0] // 100):
+                # For each query sequence, align with the nearest neighbors
+                # and write the results to the output file
                 for j in range(indexes.shape[1]):
                     x = seqs[i]
                     seq_i = target_headers[indexes[i, j]]
@@ -272,7 +278,7 @@ def search(input_fasta, database, output, output_embeddings, output_fmt,
                         x_aligned, y_aligned = states2alignment(
                             pred_alignment, x, y)
                         alignments_i = [x_aligned, pred_alignment, y_aligned]
-                        # sWrite out the alignments
+                        # Write out the alignments
                         x, s, y = alignments_i
                         # TODO : not clear how to get the sequence IDS
                         ix, iy = format_ids(headers[i], seq_i)
