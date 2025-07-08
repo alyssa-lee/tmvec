@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import click
+import torch
 from click._compat import get_text_stderr
 from click.exceptions import UsageError
 from click.utils import echo
@@ -12,7 +13,7 @@ from pysam import FastaFile
 from tmvec import TMVEC_SEQ_LIM, __version__
 from tmvec.database import (get_metadata_for_neighbors, load_database, query,
                             save_database)
-from tmvec.embedding import Ankh, ESMEncoder, ProtT5Encoder
+from tmvec.embedding import ProtT5Encoder
 from tmvec.utils import (create_batched_sequence_dataset, format_ids,
                          load_fasta_as_dict, save_embeddings, save_results)
 from tmvec.vectorizer import TMVec
@@ -120,11 +121,13 @@ def build_db(input_fasta, output, tm_vec_model, protrans_model, cache_dir,
 
     headers, seqs = zip(*records.items())
     # Load model
-    tm_vec = TMVec.from_pretrained(model_folder=tm_vec_model,
-                                   cache_dir=cache_dir,
-                                   protlm_path=protrans_model,
-                                   protlm_tokenizer_path=protrans_model,
-                                   local_files_only=local)
+    tm_vec = TMVec.from_pretrained(
+        model_folder=tm_vec_model,
+        cache_dir=cache_dir,
+        protlm_path=protrans_model,
+        protlm_tokenizer_path=protrans_model,
+        local_files_only=local,
+        device="cuda" if torch.cuda.is_available() else "cpu")
 
     # Embed all query sequences
     encoded_database = tm_vec.vectorize_proteins(seqs)
@@ -334,7 +337,11 @@ def embed(input_fasta, output_file, model_type, model_path, tokenizer_path,
     sequences = create_batched_sequence_dataset(seqs_dict,
                                                 max_tokens_per_batch)
 
-    models = {"prott5": ProtT5Encoder, "esm": ESMEncoder, "ankh": Ankh}
+    models = {
+        "prott5": ProtT5Encoder,
+        #   "esm": ESMEncoder,
+        #   "ankh": Ankh
+    }
     Embedder = models[model_type]
 
     # Initialize ProtT5Encoder
@@ -342,7 +349,6 @@ def embed(input_fasta, output_file, model_type, model_path, tokenizer_path,
         model_path=model_path,
         tokenizer_path=tokenizer_path if tokenizer_path else model_path,
         cache_dir=cache_dir,
-        backend="torch",
         compile_model=True,
         local_files_only=local)
     # Create HDF5 file

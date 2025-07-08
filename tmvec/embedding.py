@@ -1,151 +1,181 @@
 import re
-import warnings
-from types import MethodType
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
-# silence future warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
+import torch
+from torch import Tensor
+from transformers import PreTrainedTokenizer, T5EncoderModel, T5Tokenizer
 
 
 class ProtLM:
+    """
+    Base class for protein language models (LMs).
+    Handles loading, tokenization, and embedding extraction.
+    """
     def __init__(self,
-                 model_path,
-                 tokenizer_path,
-                 cache_dir,
-                 backend="torch",
-                 compile_model=False,
-                 threads=1):
-        self.model_path = model_path
-        self.tokenizer_path = tokenizer_path
-        self.cache_dir = cache_dir
-        self.backend = backend
-        self.compile_model = compile_model
-        self.threads = threads
-        self.tokenizer = None
-        self.model = None
-        self.device = None
-        self.forward_pass = None
+                 model_path: Union[str, Path],
+                 tokenizer_path: Union[str, Path],
+                 cache_dir: Optional[Union[str, Path]] = None,
+                 compile_model: bool = False,
+                 threads: int = 1) -> None:
+        """
+        Initialize the ProtLM model.
 
-        # ignore compile model for non-torch backends
-        if backend != "torch":
-            self.compile_model = False
+        Args:
+            model_path: Path to the pretrained model.
+            tokenizer_path: Path to the tokenizer.
+            cache_dir: Directory for cache (optional).
+            compile_model: Whether to compile the model for faster inference.
+            threads: Number of CPU threads to use.
+        """
+        self.model_path: Union[str, Path] = model_path
+        self.tokenizer_path: Union[str, Path] = tokenizer_path
+        self.cache_dir: Optional[Union[str, Path]] = cache_dir
+        self.compile_model: bool = compile_model
+        self.threads: int = threads
 
-    def init_torch(self):
-        import torch
-        self.device = torch.device(
+        self.tokenizer: Optional[PreTrainedTokenizer] = None
+        self.model: Optional[torch.nn.Module] = None
+        self.device: torch.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
+
+        # Set Torch CPU threads globally
+        torch.set_num_threads(self.threads)
+
+    def _prepare_model(self) -> None:
+        """Prepare model for inference (set device and compilation if enabled)."""
+        if self.model is None:
+            raise ValueError("Model is not loaded yet.")
         self.model.eval()
         self.model.to(self.device)
         if self.compile_model:
             self.model = torch.compile(self.model,
                                        mode="reduce-overhead",
                                        dynamic=True)
-        # set torch threads
-        torch.set_num_threads(self.threads)
 
-        def forward_pass(self, inp):
-            with torch.no_grad():
-                out = self.model(**inp)
+    def forward(self, inputs: dict) -> Tensor:
+        """
+        Perform a forward pass through the model.
 
-            out = out.last_hidden_state.detach().cpu().numpy()
+        Args:
+            inputs: Tokenized inputs.
 
-            return out
+        Returns:
+            Numpy array of embeddings.
+        """
+        if self.model is None:
+            raise ValueError("Model is not initialized.")
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+        return outputs.last_hidden_state.detach().cpu().numpy()
 
-        self.forward_pass = MethodType(forward_pass, self)
+    def tokenize(self, sequences: List[str]) -> dict:
+        """
+        Tokenize input sequences.
 
-    def init_onnx(self):
-        import onnxruntime as rt
-        import torch
-        from optimum.onnxruntime import ORTModel
+        Args:
+            sequences: List of protein sequences.
 
-        # TODO: troubleshot ONNX run on GPU
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        sess_options = rt.SessionOptions()
-        sess_options.intra_op_num_threads = self.threads
-        sess_options.inter_op_num_threads = self.threads
-        sess_options.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
-        sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_ALL
-        self.model = ORTModel.from_pretrained(self.model_path,
-                                              model_save_dir=self.cache_dir,
-                                              session_options=sess_options,
-                                              providers=[
-                                                  "TensorrtExecutionProvider",
-                                                  "CUDAExecutionProvider",
-                                                  "CPUExecutionProvider"
-                                              ]).model
+        Returns:
+            Tokenized inputs as tensors.
+        """
+        if self.tokenizer is None:
+            raise ValueError("Tokenizer is not initialized.")
+        return self.tokenizer.batch_encode_plus(sequences,
+                                                padding=True,
+                                                return_tensors="pt",
+                                                add_special_tokens=True)
 
-        def forward_pass(self, inp):
-            onnx_input = {
-                self.model.get_inputs()[0].name:
-                inp["input_ids"].cpu().numpy(),
-                self.model.get_inputs()[1].name:
-                inp["attention_mask"].cpu().numpy()
-            }
-            out = self.model.run(["last_hidden_state"], onnx_input)[0]
+    def batch_embed(self, sequences: List[str]) -> Tuple[dict, Tensor]:
+        """
+        Embed a batch of protein sequences.
 
-            return out
+        Args:
+            sequences: List of protein sequences.
 
-        self.forward_pass = MethodType(forward_pass, self)
-
-    def tokenize(self, sequences):
-        inp = self.tokenizer.batch_encode_plus(sequences,
-                                               padding=True,
-                                               return_tensors="pt",
-                                               add_special_tokens=True)
-        return inp
-
-    def batch_embed(self, sequences):
-
-        inp = self.tokenize(sequences).to(self.device)
-        embs = self.forward_pass(inp)
-
-        return inp, embs
+        Returns:
+            Tuple of (tokenized inputs, embeddings).
+        """
+        inputs = self.tokenize(sequences)
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        embeddings = self.forward(inputs)
+        return inputs, embeddings
 
     def remove_special_tokens(self,
-                              embeddings,
-                              attention_mask,
-                              shift_start=0,
-                              shift_end=-1):
-        clean_embeddings = []
-        embeddings = list(embeddings)
+                              embeddings: Union[Tensor, List],
+                              attention_mask: Tensor,
+                              shift_start: int = 0,
+                              shift_end: int = -1) -> List[Tensor]:
+        """
+        Remove special tokens from embeddings.
+
+        Args:
+            embeddings: Full sequence embeddings.
+            attention_mask: Attention masks.
+            shift_start: Tokens to trim from start.
+            shift_end: Tokens to trim from end.
+
+        Returns:
+            List of cleaned embeddings.
+        """
+        cleaned: List[Tensor] = []
         for emb, mask in zip(embeddings, attention_mask):
-            seq_len = (mask == 1).sum()
+            seq_len = int((mask == 1).sum())
             seq_emb = emb[shift_start:seq_len + shift_end]
-            clean_embeddings.append(seq_emb)
+            cleaned.append(seq_emb)
+        return cleaned
 
-        return clean_embeddings
+    def get_sequence_embeddings(self, sequences: List[str]) -> List[Tensor]:
+        """
+        Get cleaned sequence embeddings for input sequences.
 
-    def get_sequence_embeddings(self, sequences):
-        inp, embs = self.batch_embed(sequences)
-        embs = self.remove_special_tokens(embs, inp["attention_mask"])
-        return embs
+        Args:
+            sequences: List of protein sequences.
+
+        Returns:
+            List of cleaned sequence embeddings.
+        """
+        inputs, embeddings = self.batch_embed(sequences)
+        cleaned = self.remove_special_tokens(embeddings,
+                                             inputs["attention_mask"])
+        return cleaned
 
 
 class ProtT5Encoder(ProtLM):
+    """
+    Protein T5 encoder implementation using Hugging Face Transformers.
+    """
     def __init__(self,
-                 model_path,
-                 tokenizer_path,
-                 cache_dir=None,
-                 backend="torch",
-                 compile_model=False,
-                 local_files_only=False,
-                 threads=1):
-        from transformers import AutoTokenizer
+                 model_path: Union[str, Path],
+                 tokenizer_path: Union[str, Path],
+                 cache_dir: Optional[Union[str, Path]] = None,
+                 compile_model: bool = False,
+                 local_files_only: bool = False,
+                 threads: int = 1) -> None:
+        """
+        Initialize the ProtT5 encoder.
+
+        Args:
+            model_path: Path to T5 encoder model.
+            tokenizer_path: Path to tokenizer.
+            cache_dir: Directory for cache (optional).
+            compile_model: Whether to compile the model for faster inference.
+            local_files_only: Whether to only use local files for loading.
+            threads: Number of CPU threads to use.
+        """
         super().__init__(model_path, tokenizer_path, cache_dir, compile_model,
                          threads)
-        self.tokenizer = AutoTokenizer.from_pretrained(
+
+        # Load tokenizer and model
+        self.tokenizer: T5Tokenizer = T5Tokenizer.from_pretrained(
             tokenizer_path,
             cache_dir=cache_dir,
             local_files_only=local_files_only,
             legacy=True)
-        if backend == "torch":
-            from transformers import T5EncoderModel
-            self.model = T5EncoderModel.from_pretrained(
-                model_path,
-                cache_dir=cache_dir,
-                local_files_only=local_files_only)
-            self.init_torch()
-        elif backend == "onnx":
-            self.init_onnx()
+        self.model: T5EncoderModel = T5EncoderModel.from_pretrained(
+            model_path, cache_dir=cache_dir, local_files_only=local_files_only)
+
+        self._prepare_model()
 
     def tokenize(self, sequences):
         seqs = [
@@ -161,7 +191,6 @@ class ESMEncoder(ProtLM):
                  model_path,
                  tokenizer_path,
                  cache_dir=None,
-                 backend="torch",
                  compile_model=False,
                  local_files_only=False,
                  threads=1):
@@ -169,20 +198,13 @@ class ESMEncoder(ProtLM):
 
         super().__init__(model_path, tokenizer_path, cache_dir, compile_model,
                          threads)
-        if backend == "torch":
-            self.tokenizer = EsmTokenizer.from_pretrained(
-                tokenizer_path,
-                cache_dir=cache_dir,
-                local_files_only=local_files_only,
-                legacy=True)
-            self.model = EsmModel.from_pretrained(
-                model_path,
-                cache_dir=cache_dir,
-                local_files_only=local_files_only)
-
-            self.init_torch()
-        else:
-            raise ValueError("Backend is not supported for ESM model.")
+        self.tokenizer = EsmTokenizer.from_pretrained(
+            tokenizer_path,
+            cache_dir=cache_dir,
+            local_files_only=local_files_only,
+            legacy=True)
+        self.model = EsmModel.from_pretrained(
+            model_path, cache_dir=cache_dir, local_files_only=local_files_only)
 
     def remove_special_tokens(self,
                               embeddings,

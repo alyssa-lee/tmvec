@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from tmvec import PLM_ONNX, PLM_REPO, TMVEC_REPO
+from tmvec import PLM_REPO, TMVEC_REPO
 from tmvec.embedding import ProtT5Encoder
 from tmvec.model import (TransformerEncoderModule,
                          TransformerEncoderModuleConfig)
@@ -23,9 +23,7 @@ class TMVec:
         self.protlm_path = protlm_path
         self.protlm_tokenizer_path = protlm_tokenizer_path
         self.cache_dir = cache_dir
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
-        self.backend = None
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.compile_model = None
         # load from the repo
         if not self.tmvec_model:
@@ -41,21 +39,16 @@ class TMVec:
 
         if self.protlm_tokenizer_path is None:
             self.protlm_tokenizer_path = PLM_REPO
-        if str(self.device) == "cuda":
+            self.protlm_path = PLM_REPO
+            self.compile_model = False
             if self.protlm_path is None:
                 self.protlm_path = PLM_REPO
-            self.backend = "torch"
-            self.compile_model = True
-        elif str(self.device) == "cpu":
-            if self.protlm_path is None:
-                self.protlm_path = PLM_ONNX
-            self.backend = "onnx"
-            self.compile_model = False
+                self.compile_model = True
+
         self.embedder = ProtT5Encoder(self.protlm_path,
                                       self.protlm_tokenizer_path,
                                       self.cache_dir,
                                       local_files_only=local_files_only,
-                                      backend=self.backend,
                                       compile_model=self.compile_model,
                                       threads=1)
 

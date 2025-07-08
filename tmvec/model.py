@@ -39,7 +39,9 @@ class TransformerEncoderModule(L.LightningModule, PyTorchModelHubMixin):
     """
     TransformerEncoderLayer with preset parameters followed by global pooling and dropout
     """
-    def __init__(self, config: Union[TransformerEncoderModuleConfig, dict]):
+    def __init__(self,
+                 config: Union[TransformerEncoderModuleConfig, dict],
+                 random_seed: int = 42):
         """
         Initialize the TransformerEncoderModule.
 
@@ -62,6 +64,8 @@ class TransformerEncoderModule(L.LightningModule, PyTorchModelHubMixin):
         super().__init__()
 
         # loading parameters from the internet model
+        torch.manual_seed(random_seed)
+
         if isinstance(config, TransformerEncoderModuleConfig):
             self.config = config
         elif isinstance(config, dict):
