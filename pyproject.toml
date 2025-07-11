@@ -44,7 +44,7 @@ urls = { "Homepage" = "https://github.com/valentynbez/tmvec" }
 dependencies = [
   "numpy",
   "pandas",
-  "torch",
+  "torch >=2.6.0",
   "lightning",
   "pysam",
   "transformers",

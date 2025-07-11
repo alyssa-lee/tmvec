@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import click
-import torch
 from click._compat import get_text_stderr
 from click.exceptions import UsageError
 from click.utils import echo
@@ -122,13 +121,11 @@ def build_db(input_fasta, output, tm_vec_model, protrans_model, cache_dir,
 
     headers, seqs = zip(*records.items())
     # Load model
-    tm_vec = TMVec.from_pretrained(
-        model_folder=tm_vec_model,
-        cache_dir=cache_dir,
-        protlm_path=protrans_model,
-        protlm_tokenizer_path=protrans_model,
-        local_files_only=local,
-        device="cuda" if torch.cuda.is_available() else "cpu")
+    tm_vec = TMVec.from_pretrained(model_folder=tm_vec_model,
+                                   cache_dir=cache_dir,
+                                   protlm_path=protrans_model,
+                                   protlm_tokenizer_path=protrans_model,
+                                   local_files_only=local)
 
     # Embed all query sequences
     encoded_database = tm_vec.vectorize_proteins(seqs)
