@@ -50,7 +50,9 @@ dependencies = [
   "transformers",
   "SentencePiece",
   "faiss-cpu",
-  "optimum"
+  "optimum",
+  "h5py",
+  "click"
 ]
 
 [project.optional-dependencies]
