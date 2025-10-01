@@ -49,7 +49,7 @@ dependencies = [
   "pysam",
   "transformers",
   "SentencePiece",
-  "faiss-cpu",
+  #"faiss-cpu",
   "optimum",
   "h5py",
   "click"
